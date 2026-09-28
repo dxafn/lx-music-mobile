@@ -10,6 +10,7 @@ import playerState from '@/store/player/state'
 import musicSdk from '@/utils/musicSdk'
 import { toOldMusicInfo } from '@/utils'
 import { clearMusicUrlByMusic } from '@/utils/data'
+import { downloadMusicToLocal, isMusicDownloading } from '@/core/music/downloader'
 
 export const handlePlay = (musicInfo: LX.Music.MusicInfoOnline) => {
   void addListMusics(LIST_IDS.DEFAULT, [musicInfo], settingState.setting['list.addMusicLocationType']).then(() => {
@@ -60,6 +61,20 @@ export const handleDislikeMusic = async(musicInfo: LX.Music.MusicInfoOnline) => 
   toast(global.i18n.t('lists_dislike_music_add_tip'))
   if (hasDislike(playerState.playMusicInfo.musicInfo)) {
     void playNext(true)
+  }
+}
+
+export const handleDownload = async(musicInfo: LX.Music.MusicInfoOnline) => {
+  if (isMusicDownloading(musicInfo)) {
+    toast(global.i18n.t('download_start', { name: musicInfo.name }))
+    return
+  }
+  try {
+    const savePath = await downloadMusicToLocal(musicInfo)
+    toast(global.i18n.t('download_success', { path: savePath }))
+  } catch (err) {
+    console.error(err)
+    toast(err instanceof Error && err.message ? err.message : global.i18n.t('download_failed'), 'long')
   }
 }
 

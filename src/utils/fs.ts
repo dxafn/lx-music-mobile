@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import RNFS from 'react-native-fs'
 import {
   Dirs,
@@ -8,6 +9,7 @@ import {
   type HashAlgorithm,
   getExternalStoragePaths as _getExternalStoragePaths,
 } from 'react-native-file-system'
+import settingState from '@/store/setting/state'
 
 export type {
   FileType,
@@ -20,6 +22,78 @@ export const extname = (name: string) => name.lastIndexOf('.') > 0 ? name.substr
 export const temporaryDirectoryPath = Dirs.CacheDir
 export const externalStorageDirectoryPath = Dirs.SDCardDir
 export const privateStorageDirectoryPath = Dirs.DocumentDir
+
+const MUSIC_DOWNLOAD_APP_FOLDER = 'lxmusic'
+
+export const getMusicDownloadDirectoryPath = (): string => {
+  const customPath = settingState.setting['download.savePath']?.trim()
+  if (customPath) return customPath.replace(/\/+/g, '/')
+  if (Platform.OS === 'android') {
+    const root = (RNFS.DownloadDirectoryPath ?? '').replace(/\/+$/, '')
+    if (root.length > 0) {
+      return `${root}/${MUSIC_DOWNLOAD_APP_FOLDER}`.replace(/\/+/g, '/')
+    }
+  }
+  return `${privateStorageDirectoryPath}/download/${MUSIC_DOWNLOAD_APP_FOLDER}`.replace(/\/+/g, '/')
+}
+
+export const ensureMusicDownloadDirectory = async(): Promise<string> => {
+  const dir = getMusicDownloadDirectoryPath()
+  if (!(await RNFS.exists(dir))) {
+    await RNFS.mkdir(dir)
+  }
+  return dir
+}
+
+export const existsMusicDownloadTarget = async(path: string): Promise<boolean> => {
+  return RNFS.exists(path)
+}
+
+export interface MusicDownloadDirItem {
+  name: string
+  path: string
+  isFile: boolean
+  size: number
+}
+
+export const readMusicDownloadDirectory = async(): Promise<MusicDownloadDirItem[]> => {
+  const dir = getMusicDownloadDirectoryPath()
+  if (!(await RNFS.exists(dir))) return []
+  if (Platform.OS === 'android') {
+    const list = await RNFS.readDir(dir)
+    return list.map(item => ({
+      name: item.name,
+      path: item.path,
+      isFile: item.isFile(),
+      size: typeof item.size === 'number' ? item.size : Number(item.size) || 0,
+    }))
+  }
+  const list = await FileSystem.ls(dir)
+  return list.map((item: {
+    name: string
+    path: string
+    isFile?: boolean
+    isDirectory?: boolean
+    size?: number
+  }) => ({
+    name: item.name,
+    path: item.path,
+    isFile: item.isFile === true || item.isDirectory === false,
+    size: item.size ?? 0,
+  }))
+}
+
+export const scanMusicDownloadFile = async(path: string): Promise<void> => {
+  if (Platform.OS !== 'android') return
+  try {
+    await RNFS.scanFile(path)
+  } catch {}
+}
+
+export const removeMusicDownloadTarget = async(path: string): Promise<void> => {
+  if (!(await RNFS.exists(path))) return
+  await RNFS.unlink(path)
+}
 
 export const getExternalStoragePaths = async(is_removable?: boolean) => _getExternalStoragePaths(is_removable)
 
